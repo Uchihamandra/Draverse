@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Draverse Flow Tool</title>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--tx:#1f1e1d;--mu:#6b6a65;--bd:#e3e0d5;--ac:#b4372e;--acb:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1f1e1d;--card:#2a2927;--tx:#f0eee6;--mu:#a3a198;--bd:#3d3b37;--ac:#e0685d;--acb:#1f1e1d}}
+:root[data-theme="dark"]{--bg:#1f1e1d;--card:#2a2927;--tx:#f0eee6;--mu:#a3a198;--bd:#3d3b37;--ac:#e0685d;--acb:#1f1e1d}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0}
+h2{font-size:17px;margin:22px 0 8px}
+p.s{color:var(--mu);margin:0 0 14px;font-size:14px}
+textarea,select,input{width:100%;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px;font:inherit}
+textarea{min-height:150px;resize:vertical}
+.row{display:flex;gap:10px;margin:10px 0}
+.row>div{flex:1}
+label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
+button{font:inherit;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 12px;cursor:pointer}
+button.p{background:var(--ac);color:var(--acb);border-color:var(--ac);width:100%;padding:12px;font-weight:600}
+button:disabled{opacity:.5}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+.card h3{font-size:15px;margin:0 0 4px}
+.tag{font-size:12px;color:var(--mu)}
+.box{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;margin:8px 0;font-size:13px;white-space:pre-wrap;word-break:break-word}
+.err{color:var(--ac);font-size:14px;margin:10px 0}
+.dlg{white-space:pre-wrap;margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Draverse Flow Tool</h1>
+<p class="s">Tempel cerita, dapat karakter konsisten, skrip, dan prompt per adegan untuk Google Flow.</p>
+<div class="card"><label for="key">API key Gemini (disimpan di browser ini saja)</label><input id="key" type="password" autocomplete="off" placeholder="Tempel API key"><label for="mod" style="margin-top:8px">Model</label><input id="mod" value="gemini-2.5-flash"><div class="tag" style="margin-top:6px">Ambil key gratis di aistudio.google.com/apikey</div></div>
+<div id="epbar" class="tag" style="margin-bottom:6px"></div>
+<label for="story" id="slab">Cerita</label>
+<textarea id="story" placeholder="Contoh: CEO dingin bernama Lin Chen menikahi pelayan kontrak untuk menyelamatkan perusahaannya, tapi ia tidak tahu istrinya adalah pewaris keluarga saingan..."></textarea>
+<div class="row"><div><label for="sty">Genre dan gaya visual</label><select id="sty"><option>CEO modern romance (kota, kantor mewah, jas)</option><option>Balas dendam modern (drama keluarga kaya)</option><option>Kerajaan kuno (istana, hanfu, intrik)</option><option>Xianxia/wuxia (fantasi, gunung berkabut)</option><option>Reinkarnasi/transmigrasi (kuno dan modern)</option><option>Kampus dan slice of life</option></select></div></div>
+<div class="row">
+<div><label for="n">Jumlah adegan</label><select id="n"><option>4</option><option selected>6</option><option>8</option></select></div>
+<div><label for="lang">Bahasa dialog</label><select id="lang"><option>Indonesia</option><option>Mandarin</option></select></div>
+</div>
+<button class="p" id="go">Buat episode 1</button>
+<div class="err" id="err"></div>
+<div id="out"></div>
+</main>
+<script>
+var $=function(i){return document.getElementById(i)};
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+var sample=null,prev=null,base=null,ep=1;
+function sv(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function ld(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+async function gem(p){
+  var m=$("mod").value.trim()||"gemini-2.5-flash";
+  var r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":$("key").value.trim()},body:JSON.stringify({contents:[{parts:[{text:p}]}],generationConfig:{responseMimeType:"application/json"}})});
+  var j=await r.json();
+  if(!r.ok){var e=new Error((j.error&&j.error.message)||"Error");e.status=r.status;throw e}
+  var t=j.candidates[0].content.parts.map(function(x){return x.text||""}).join("");
+  return JSON.parse(t.replace(/```json|```/g,"").trim());
+}
+function copy(txt,btn){
+  var ok=function(){var o=btn.textContent;btn.textContent="Tersalin";setTimeout(function(){btn.textContent=o},1200)};
+  function fb(){var t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok()}catch(e){}t.remove()}
+  try{navigator.clipboard.writeText(txt).then(ok,fb)}catch(e){fb()}
+}
+function block(parent,label,txt){
+  parent.appendChild(el("div","tag",label));
+  parent.appendChild(el("div","box",txt));
+  var b=el("button",null,"Salin prompt");b.onclick=function(){copy(txt,b)};parent.appendChild(b);
+}
+function ui(){
+  $("go").textContent="Buat episode "+ep;
+  $("slab").textContent=ep===1?"Cerita":"Kelanjutan cerita (episode "+ep+")";
+  $("epbar").textContent=ep===1?"":"Mode lanjutan: karakter dari episode sebelumnya otomatis dipakai dengan tampilan yang sama.";
+  $("story").placeholder=ep===1?"Tulis atau tempel ceritamu...":"Apa yang terjadi di episode ini? Kosongkan agar dilanjutkan otomatis.";
+}
+$("go").onclick=async function(){
+  var story=$("story").value.trim(),err=$("err"),out=$("out"),btn=$("go");
+  err.textContent="";
+  if(ep===1&&!story){err.textContent="Isi ceritanya dulu.";return}
+  if(!$("key").value.trim()){err.textContent="Isi API key Gemini dulu di kotak pengaturan.";return}
+  var n=$("n").value,lang=$("lang").value,sty=$("sty").value;
+  btn.disabled=true;btn.textContent="Sedang membuat...";out.innerHTML="";
+  var ctx=base?" Ini episode "+ep+". Karakter dari episode sebelumnya (WAJIB dipakai dengan look persis sama, jangan diubah; boleh tambah karakter baru; kembalikan SEMUA karakter di array characters): "+JSON.stringify(base.characters)+". Adegan episode sebelumnya: "+base.scenes.map(function(s){return s.title}).join("; ")+". Adegan 1 harus menyambung cliffhanger sebelumnya. "+(story?"Arahan lanjutan: "+story:"Lanjutkan cerita secara alami."):" Cerita: "+story;
+  var p='Kamu penulis drama pendek Cina (dracin) untuk YouTube. Genre dan gaya visual: '+sty+'. Buat paket produksi untuk Google Flow (Veo). Balas HANYA JSON valid tanpa teks lain: {"style":"","characters":[{"name":"","role":"","look":""}],"scenes":[{"title":"","location":"","chars":[""],"action":"","camera":"","dialog":""}]}. Aturan: style = satu kalimat Inggris (sinematik, gaya drama Cina, warna, cahaya, sesuai genre). look = deskripsi visual tetap dalam Inggris, 40-60 kata (umur, bentuk wajah, rambut, baju, ciri khas), dipakai persis sama di semua adegan. location, action, camera = Inggris, 1-2 kalimat, untuk klip 8 detik. chars = nama karakter yang muncul di adegan. dialog = bahasa '+lang+', maksimal 2 baris pendek, format "Nama: kalimat". Buat tepat '+n+' adegan; adegan pertama hook kuat, adegan terakhir cliffhanger.'+ctx;
+  try{
+    var d=await gem(p);
+    var L={};(d.characters||[]).forEach(function(c){L[c.name]=c});
+    out.appendChild(el("h2",null,"Episode "+ep+": karakter (kunci konsistensi)"));
+    out.appendChild(el("p","s","Buat gambar tiap karakter dulu di Flow, lalu pakai sebagai referensi (ingredients) di semua adegan."));
+    (d.characters||[]).forEach(function(c){
+      var k=el("div","card");k.appendChild(el("h3",null,c.name));k.appendChild(el("div","tag",c.role));
+      block(k,"Prompt character sheet",d.style+". Character reference sheet, full body and face close-up, neutral background: "+c.look);
+      out.appendChild(k);
+    });
+    out.appendChild(el("h2",null,"Skrip dan prompt adegan"));
+    var all=[];
+    (d.scenes||[]).forEach(function(s,i){
+      var looks=(s.chars||[]).map(function(c){return L[c]?c+": "+L[c].look:c}).join(" ");
+      var fp=d.style+". Location: "+s.location+". Characters: "+looks+" Action: "+s.action+" Camera: "+s.camera+". Dialogue: "+s.dialog;
+      all.push("EP"+ep+" ADEGAN "+(i+1)+": "+s.title+"\n"+fp);
+      var k=el("div","card");k.appendChild(el("h3",null,(i+1)+". "+s.title));
+      k.appendChild(el("div","dlg",s.dialog));
+      block(k,"Prompt Flow (karakter sudah disisipkan)",fp);
+      out.appendChild(k);
+    });
+    var ca=el("button",null,"Salin semua prompt adegan");ca.onclick=function(){copy(all.join("\n\n"),ca)};out.appendChild(ca);
+    prev=d;
+    var nx=el("button","p","Lanjut ke episode "+(ep+1));nx.style.marginTop="14px";
+    nx.onclick=function(){base=prev;ep++;$("story").value="";out.innerHTML="";ui();window.scrollTo(0,0);$("story").focus()};
+    out.appendChild(nx);
+    var rs=el("button",null,"Mulai cerita baru");rs.style.cssText="width:100%;margin-top:8px";
+    rs.onclick=function(){prev=null;base=null;ep=1;$("story").value="";out.innerHTML="";ui();window.scrollTo(0,0)};
+    out.appendChild(rs);
+    btn.textContent="Buat ulang episode "+ep;
+  }catch(e){
+    err.textContent=e&&e.status===429?"Kuota gratis habis atau terlalu sering. Tunggu sebentar lalu coba lagi.":e&&(e.status===400||e.status===403||e.status===404)?"Ditolak Google: "+e.message+" (cek API key dan nama model).":"Gagal membuat. Coba lagi atau kurangi jumlah adegan.";
+    ui();
+  }
+  btn.disabled=false;
+};
+$("key").value=ld("dv_key");$("mod").value=ld("dv_mod")||"gemini-2.5-flash";
+$("key").oninput=function(){sv("dv_key",this.value)};$("mod").oninput=function(){sv("dv_mod",this.value)};
+ui();
+</script>
+</body>
+</html>
